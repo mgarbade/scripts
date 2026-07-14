@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# The first argument to the script, provided by Git, is the path to the commit message file
+COMMIT_MSG_FILE=$1
+
+
+
+# *Message starts with "---" -> remove it and early exit script *
+# Read the first line of the commit message
+FIRST_LINE=$(head -n 1 ${COMMIT_MSG_FILE})
+
+# Check if the first line starts with "---"
+if [[ $FIRST_LINE == "---"* ]]; then
+    # If it does, remove the "---" from the first line and leave the rest of the message unchanged
+    sed -i.bak '1s/^---//' ${COMMIT_MSG_FILE}
+    exit
+fi
+
+
+# *Otherwise try to integrate branch name into commit message*
+# Retrieve the current branch name using Git commands
+BRANCH_NAME=$(git symbolic-ref --short HEAD)
+
+# Extract a potential prefix from the branch name.
+# This uses a regular expression to match a pattern at the start of the branch name.
+# The pattern is: one or more letters, followed by a dash, followed by one or more numbers.
+# For example, it matches "AIT-123" in "AIT-123-fix-bug".
+POTENTIAL_PREFIX=$(echo $BRANCH_NAME | grep -oE '^[A-Za-z]+-[0-9]+')
+
+echo "POTENTIAL_PREFIX = $POTENTIAL_PREFIX"
+
+# Check if the potential prefix matches the specific pattern "AIT-<SOME_NUMBER>"
+# This is done using a regular expression match in Bash.
+# The pattern is: "AIT-" followed by one or more digits.
+# ^ and $ are used to ensure the entire string matches this pattern.
+
+
+if [[ $POTENTIAL_PREFIX =~ ^GDB-[0-9]+$ ||  $POTENTIAL_PREFIX =~ ^JMTR-[0-9]+$ ]]; then
+
+    # Check if the commit message already contains the potential prefix
+    # This is to avoid duplicating the prefix if it's already there.
+    # The command `head -1` reads only the first line of the commit message file.
+    # `grep -c` counts the number of lines that contain the prefix.
+    if [ $(head -1 ${COMMIT_MSG_FILE} | grep -c "$POTENTIAL_PREFIX") = 0 ]; then
+
+        # Prepend the potential prefix to the commit message
+        # `sed -i.bak` edits the file in-place but also creates a backup with .bak extension.
+        # `1s` targets the first line of the file.
+        # `^` indicates the start of the line.
+        # The potential prefix followed by a space is inserted at the beginning of the line.
+        sed -i.bak -e "1s/^/$POTENTIAL_PREFIX /" ${COMMIT_MSG_FILE}
+    fi
+else
+    # Output a message if the branch name does not start with the expected pattern.
+    echo "The branch name does not start with the expected pattern."
+fi
